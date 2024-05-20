@@ -106,18 +106,7 @@
             <version>3.1</version>
         </dependency>
 
-        <!--es 高级客户端 包含org.elasticsearch-->
-        <dependency>
-            <groupId>org.elasticsearch.client</groupId>
-            <artifactId>elasticsearch-rest-high-level-client</artifactId>
-            <version>7.15.2</version>
-        </dependency>
-        <!--es bug导致运行异常，缺少包，优先引入上面的，如果不报错，下面这个不需要引入，-->
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>7.15.2</version>
-        </dependency>
+
         <!-- https://mvnrepository.com/artifact/com.github.xiaoymin/knife4j-spring-boot-starter -->
         <dependency>
             <groupId>com.github.xiaoymin</groupId>

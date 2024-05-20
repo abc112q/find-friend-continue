@@ -7,12 +7,11 @@ import com.ariel.findfriendbackend.contant.UserConstant;
 import com.ariel.findfriendbackend.exception.BusinessException;
 import com.ariel.findfriendbackend.mapper.UserMapper;
 import com.ariel.findfriendbackend.model.domain.User;
-import com.ariel.findfriendbackend.model.enums.ListTypeEnum;
 import com.ariel.findfriendbackend.model.vo.TagVo;
 import com.ariel.findfriendbackend.model.vo.UserForgetRequest;
 import com.ariel.findfriendbackend.model.vo.UserSendMessage;
 import com.ariel.findfriendbackend.service.UserService;
-import com.ariel.findfriendbackend.utils.AllUtils;
+import com.ariel.findfriendbackend.utils.AlgorithmUtils;
 import com.ariel.findfriendbackend.utils.ValidateCodeUtils;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -32,7 +31,6 @@ import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -40,8 +38,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.ariel.findfriendbackend.contant.UserConstant.USER_LOGIN_STATE;
-import static com.ariel.findfriendbackend.model.enums.ListTypeEnum.ENGLISH;
-import static com.ariel.findfriendbackend.model.enums.ListTypeEnum.MIXEECAE;
 
 
 /**
@@ -137,7 +133,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         user.setUserPassword(encryptPassword);
         user.setEmail(userEmail);
         user.setPlanetCode(planetCode);
-        String defaultUrl = "https://img1.baidu.com/it/u=1637179393,2329776654&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=542";
+        String defaultUrl = "https://th.bing.com/th?id=OIP.iBRCLSP5Q31yL4TnSx07JgHaI_&w=226&h=275&c=8&rs=1&qlt=90&o=6&dpr=2&pid=3.1&rm=2";
         user.setAvatarUrl(defaultUrl);
         boolean saveResult = this.save(user);
         if (!saveResult) {
@@ -412,21 +408,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return loginUser != null && loginUser.getUserRole() == UserConstant.ADMIN_ROLE;
     }
 
+    /**
+     * 用户匹配
+     * @param num
+     * @param loginUser
+     * @return
+     */
+
     @Override
-    public List<User> matchUsers(long num, User loginUser) throws IOException {
-        loginUser = this.getById(loginUser.getId());
+    public List<User> matchUsers(long num, User loginUser) {
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.select("id", "tags");
         queryWrapper.isNotNull("tags");
         List<User> userList = this.list(queryWrapper);
         String tags = loginUser.getTags();
-        loginUser = this.getById(loginUser.getId());
         Gson gson = new Gson();
         List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {
         }.getType());
-        log.info("tagList:" + tagList.toString());
         // 用户列表的下标 => 相似度
-        List<Pair<User, Double>> list = new ArrayList<>();
+        List<Pair<User, Long>> list = new ArrayList<>();
         // 依次计算所有用户和当前用户的相似度
         for (int i = 0; i < userList.size(); i++) {
             User user = userList.get(i);
@@ -438,12 +438,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>() {
             }.getType());
             // 计算分数
-            double distance = sorce(tagList, userTagList);
+            long distance = AlgorithmUtils.minDistance(tagList, userTagList);
             list.add(new Pair<>(user, distance));
         }
         // 按编辑距离由小到大排序
-        List<Pair<User, Double>> topUserPairList = list.stream()
-                .sorted((o1, o2) -> Double.compare(o2.getValue(), o1.getValue()))
+        List<Pair<User, Long>> topUserPairList = list.stream()
+                .sorted((a, b) -> (int) (a.getValue() - b.getValue()))
                 .limit(num)
                 .collect(Collectors.toList());
         // 原本顺序的 userId 列表
@@ -462,57 +462,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             finalUserList.add(userIdUserListMap.get(userId).get(0));
         }
         return finalUserList;
-    }
-
-    /**
-     * 三种算法结合，分配权重调用
-     * @param list1
-     * @param list2
-     * @return
-     * @throws IOException
-     */
-    public double sorce(List<String> list1, List<String> list2) throws IOException {
-        List<String> resultList1 = list1.stream().map(String::toLowerCase).collect(Collectors.toList());
-        List<String> resultList2 = list2.stream().map(String::toLowerCase).collect(Collectors.toList());
-        int strType = AllUtils.getStrType(resultList1);
-        int type = AllUtils.getStrType(resultList2);
-        ListTypeEnum enumByValue = ListTypeEnum.getEnumByValue(strType);
-        ListTypeEnum enumByValue1 = ListTypeEnum.getEnumByValue(type);
-        if (enumByValue == MIXEECAE) {
-            resultList1 = AllUtils.tokenize(resultList1);
-        }
-        if (enumByValue1 == MIXEECAE) {
-            resultList2 = AllUtils.tokenize(resultList2);
-        }
-        double ikSorce = 0;
-        if (enumByValue != ENGLISH && enumByValue1 != ENGLISH) {
-            List<String> resultList3 = list1.stream().map(String::toLowerCase).collect(Collectors.toList());
-            List<String> resultList4 = list2.stream().map(String::toLowerCase).collect(Collectors.toList());
-            List<String> quotedList1 = resultList3.stream()
-                    .map(str -> "\"" + str + "\"")
-                    .collect(Collectors.toList());
-            List<String> quotedList2 = resultList4.stream()
-                    .map(str -> "\"" + str + "\"")
-                    .collect(Collectors.toList());
-            String tags1 = AllUtils.collectChineseChars(quotedList1);
-            List<String> Ls = AllUtils.analyzeText(tags1);
-            String tags2 = AllUtils.collectChineseChars(quotedList2);
-            List<String> Ls2 = AllUtils.analyzeText(tags2);
-            ikSorce = AllUtils.calculateJaccardSimilarity(Ls, Ls2);
-        }
-        int EditDistanceSorce = AllUtils.calculateEditDistance(resultList1, resultList2);
-        double maxEditDistance = Math.max(resultList1.size(), resultList2.size());
-        double EditDistance = 1 - EditDistanceSorce / maxEditDistance;
-        double JaccardSorce = AllUtils.calculateJaccardSimilarity(resultList1, resultList2);
-        double similaritySorce = AllUtils.cosineSimilarity(resultList1, resultList2);
-        /**
-         * 编辑距离 权重为0.5
-         * Jaccard相似度算法（ik分词后使用Jaccard相似度算法） 权重为0.3
-         *  余弦相似度 权重为0.2
-         *
-         */
-        double totalSorce = EditDistance * 0.5 + JaccardSorce * 0.3 + similaritySorce * 0.2 + ikSorce * 0.3;
-        return totalSorce;
     }
 
     @Override

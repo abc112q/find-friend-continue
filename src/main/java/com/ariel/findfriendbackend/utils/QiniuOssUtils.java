@@ -26,8 +26,6 @@ public class QiniuOssUtils {
     /**
      * 存储空间名
      */
-
-
     private static final String BUCKET = "arielfriend";
     /**
      * accessKey和secretKey
@@ -104,8 +102,10 @@ public class QiniuOssUtils {
         Response response = upload.put(is, key, getToken(), null, null);
         //解析返回结果
         DefaultPutRet putRet = new Gson().fromJson(response.bodyString(), DefaultPutRet.class);
+        String url=BASE_URL + putRet.key;
+        System.out.println("文件url:"+url);
         //将文件的访问地址返回
-        return BASE_URL + putRet.key;
+        return url;
         //return  putRet.key;
     }
 

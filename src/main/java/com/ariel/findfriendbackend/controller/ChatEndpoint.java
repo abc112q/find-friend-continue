@@ -89,6 +89,7 @@ public class ChatEndpoint {
             log.info("websocket消息: 异常:" + resultMessage);
             ChatEndpoint chatEndpoint = onlineUsers.get(toName);
             if (chatEndpoint==null){
+                log.error("该用户不在线");
                 throw new BusinessException(ErrorCode.PARAMS_ERROR,"该用户不在线!");
             }
             onlineUsers.get(toName).session.getBasicRemote().sendText(resultMessage);
